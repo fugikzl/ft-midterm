@@ -1,0 +1,19 @@
+image: midterm/university:dev
+profile: resilient
+hostname: midterm.k8s.orb.local
+apiReplicas: 2
+workerReplicas: 2
+gatewayReplicas: 2
+gatewayPort: 80
+# Attach the HTTPRoute to a shared Gateway parentRef instead of creating this release's EnvoyProxy/Gateway.
+externalGateway: {}
+tls:
+  enabled: false
+  port: 443
+  secretName: university-tls
+secretName: university-secrets
+storageClass: local-path
+backupEnabled: true
+resources:
+  requests: {cpu: 100m, memory: 160Mi}
+  limits: {cpu: "2", memory: 512Mi}

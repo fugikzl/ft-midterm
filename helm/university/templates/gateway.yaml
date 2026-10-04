@@ -1,0 +1,85 @@
+{{- if not .Values.externalGateway }}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata: {name: university-proxy}
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: {{ .Values.gatewayReplicas }}
+        pod:
+          labels: {component: gateway, profile: {{ .Values.profile }}}
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "19001"
+            prometheus.io/path: /stats/prometheus
+        container:
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: "1", memory: 256Mi}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata: {name: university}
+spec:
+  gatewayClassName: midterm-envoy
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: university-proxy
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: {{ .Values.gatewayPort }}
+      allowedRoutes:
+        namespaces: {from: Same}
+    {{- if .Values.tls.enabled }}
+    - name: https
+      protocol: HTTPS
+      port: {{ .Values.tls.port }}
+      hostname: {{ .Values.hostname | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: {{ .Values.tls.secretName }}
+      allowedRoutes:
+        namespaces: {from: Same}
+    {{- end }}
+---
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: {name: university}
+spec:
+  parentRefs: [{{ if .Values.externalGateway }}{{ toJson .Values.externalGateway }}{{ else }}{name: university}{{ end }}]
+  hostnames: [{{ .Values.hostname | quote }}]
+  rules:
+    - matches:
+        - path: {type: Exact, value: /}
+        - path: {type: PathPrefix, value: /ui}
+        - path: {type: PathPrefix, value: /api}
+        - path: {type: PathPrefix, value: /health}
+        - path: {type: PathPrefix, value: /bundles}
+      timeouts: {request: 15s, backendRequest: 12s}
+      backendRefs: [{name: api, port: 8080}]
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata: {name: admission}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: university
+  requestBuffer:
+    limit: 12Mi
+  rateLimit:
+    local:
+      rules:
+        - limit:
+            requests: 200
+            unit: Second

@@ -1,0 +1,9 @@
+.git
+vendor
+node_modules
+var
+output
+config/jwt
+.env.local
+.phpunit.cache
+rr

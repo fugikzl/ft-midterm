@@ -1,0 +1,2 @@
+# Updated by .github/workflows/image.yaml after each published build.
+image: ghcr.io/fugikzl/ft-midterm:be003b874de865bbcccee7d830166afd3e4cc0ea
